@@ -33,11 +33,19 @@
       "dest": "/backend/main.py"
     },
     {
+      "src": "/_expo/static/(.*)",
+      "dest": "/frontend/dist/_expo/static/$1"
+    },
+    {
+      "src": "/assets/(.*)",
+      "dest": "/frontend/dist/assets/$1"
+    },
+    {
       "handle": "filesystem"
     },
     {
       "src": "/(.*)",
-      "dest": "/frontend/index.html"
+      "dest": "/frontend/dist/index.html"
     }
   ]
 }
