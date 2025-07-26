@@ -26,6 +26,11 @@
       }
     }
   ],
+  "functions": {
+    "backend/**": {
+      "excludeFiles": "{tests,venv,__pycache__,*.cache,.pytest_cache,node_modules}/**"
+    }
+  },
   "routes": [
     {
       "src": "/api/(.*)",
