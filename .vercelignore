@@ -41,6 +41,12 @@ CLAUDE.md
 build/
 dist/
 
+# Backend specific
+backend/venv/
+backend/tests/
+backend/__pycache__/
+*.log
+
 # OS files
 .DS_Store
 Thumbs.db

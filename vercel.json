@@ -5,7 +5,16 @@
       "src": "backend/main.py",
       "use": "@vercel/python",
       "config": {
-        "includeFiles": ["backend/**"]
+        "includeFiles": ["backend/**"],
+        "excludeFiles": [
+          "backend/tests/**",
+          "backend/venv/**",
+          "backend/__pycache__/**",
+          "backend/**/*.pyc",
+          "backend/**/*.pyo",
+          "backend/**/*.pyd",
+          "backend/**/*.log"
+        ]
       }
     },
     {
