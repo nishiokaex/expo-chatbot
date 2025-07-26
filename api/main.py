@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, Any, List
 import logging
+import os
 from datetime import datetime
 
 # ローカル開発用の設定
@@ -17,14 +18,15 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS設定
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # 本番環境では具体的なドメインを指定
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CORS設定（VERCEL_ENV環境変数が存在する場合は無効化）
+if not os.getenv("VERCEL_ENV"):
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 # ログ設定
 logging.basicConfig(level=logging.INFO)
