@@ -138,5 +138,8 @@ backend/.supabase/
 # Frontend specific logs directory
 frontend/logs/
 
+# Python
+*.pyc
+
 # OS specific
 Thumbs.db
