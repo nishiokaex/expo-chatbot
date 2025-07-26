@@ -1,6 +1,6 @@
 """
 FastAPIチャットボットバックエンド
-LangChainのTool機能を活用したエージェント実装
+軽量なGemini API直接呼び出し実装
 """
 
 from fastapi import FastAPI, HTTPException
@@ -10,15 +10,11 @@ from typing import Dict, Any, List
 import logging
 import os
 from datetime import datetime
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.agents import AgentExecutor, create_tool_calling_agent
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.messages import SystemMessage
 
 # ローカル開発用の設定
 app = FastAPI(
     title="ChatBot API",
-    description="LangChainを使用したチャットボットAPI",
+    description="軽量なGemini APIチャットボット",
     version="1.0.0"
 )
 
@@ -44,76 +40,123 @@ class ChatResponse(BaseModel):
     response: str
     timestamp: str
 
-# チャットボットエージェントクラス
-class ChatBotAgent:
+# 軽量チャットボットクラス
+class SimpleChatBot:
     """
-    LangChainのTool機能とGemini APIを使用したチャットボットエージェント
+    Gemini API直接呼び出しによる軽量チャットボット
     """
     
     def __init__(self):
-        self.tools = []
-        self.llm = None
-        self.agent_executor = None
-        self._initialize_tools()
-        self._initialize_llm()
-        self._initialize_agent()
-    
-    def _initialize_tools(self):
-        """利用可能なツールを初期化"""
-        from api.exchanging_tool import ExchangingTool
+        self.gemini_api_key = os.getenv("GEMINI_API_KEY")
+        self.api_url = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent"
+        self.exchange_api_url = "https://forex-api.coin.z.com/public/v1/ticker"
         
-        # 為替ツールを追加
-        exchanging_tool = ExchangingTool()
-        self.tools.append(exchanging_tool)
-        
-        logger.info(f"初期化完了: {len(self.tools)}個のツールが利用可能")
+        if not self.gemini_api_key:
+            logger.error("GEMINI_API_KEY環境変数が設定されていません")
+        else:
+            logger.info("SimpleChatBot初期化完了")
     
-    def _initialize_llm(self):
-        """Gemini LLMを初期化"""
+    def _is_exchange_query(self, message: str) -> bool:
+        """為替関連の質問かどうかを判定"""
+        exchange_keywords = ["為替", "レート", "円", "ドル", "ユーロ", "ポンド", "豪ドル", "通貨", "USD", "EUR", "GBP", "AUD", "JPY"]
+        return any(keyword in message for keyword in exchange_keywords)
+    
+    def _get_exchange_rates(self) -> str:
+        """為替レートを取得して整形"""
         try:
-            gemini_api_key = os.getenv("GEMINI_API_KEY")
-            if not gemini_api_key:
-                logger.error("GEMINI_API_KEY環境変数が設定されていません")
-                return
+            response = requests.get(self.exchange_api_url, timeout=10)
+            response.raise_for_status()
             
-            self.llm = ChatGoogleGenerativeAI(
-                model="gemini-1.5-flash",
-                google_api_key=gemini_api_key,
-                temperature=0.7
+            data = response.json()
+            
+            if data.get('status') != 0:
+                return "為替データの取得に失敗しました。"
+            
+            rates_data = data.get('data', [])
+            if not rates_data:
+                return "為替データが見つかりませんでした。"
+            
+            # 主要通貨ペアの表示
+            major_pairs = ['USD_JPY', 'EUR_JPY', 'GBP_JPY', 'AUD_JPY', 'EUR_USD']
+            
+            result = "📈 現在の為替レート\\n\\n"
+            
+            for rate_info in rates_data:
+                symbol = rate_info.get('symbol', '')
+                if symbol in major_pairs:
+                    bid = rate_info.get('bid', 'N/A')
+                    ask = rate_info.get('ask', 'N/A')
+                    spread = float(ask) - float(bid) if bid != 'N/A' and ask != 'N/A' else 'N/A'
+                    
+                    # 通貨ペア名を日本語表記に変換
+                    pair_names = {
+                        'USD_JPY': 'ドル/円',
+                        'EUR_JPY': 'ユーロ/円', 
+                        'GBP_JPY': 'ポンド/円',
+                        'AUD_JPY': '豪ドル/円',
+                        'EUR_USD': 'ユーロ/ドル'
+                    }
+                    
+                    pair_name = pair_names.get(symbol, symbol)
+                    
+                    result += f"🔹 {pair_name} ({symbol})\\n"
+                    result += f"   買値: {bid}\\n"
+                    result += f"   売値: {ask}\\n"
+                    if spread != 'N/A':
+                        result += f"   スプレッド: {spread:.4f}\\n"
+                    result += "\\n"
+            
+            # タイムスタンプを追加
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            result += f"⏰ 取得時刻: {current_time}\\n"
+            result += "\\n※ レートは参考値です。実際の取引レートとは異なる場合があります。"
+            
+            return result
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"為替API呼び出しエラー: {e}")
+            return "為替データの取得中にネットワークエラーが発生しました。しばらく時間をおいてから再度お試しください。"
+        
+        except Exception as e:
+            logger.error(f"為替データ処理エラー: {e}")
+            return "為替データの処理中にエラーが発生しました。"
+    
+    def _call_gemini_api(self, prompt: str) -> str:
+        """Gemini API直接呼び出し"""
+        try:
+            headers = {"Content-Type": "application/json"}
+            
+            payload = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    "temperature": 0.7,
+                    "maxOutputTokens": 1000
+                }
+            }
+            
+            response = requests.post(
+                f"{self.api_url}?key={self.gemini_api_key}",
+                headers=headers,
+                json=payload,
+                timeout=30
             )
-            logger.info("Gemini LLM初期化完了")
-        except Exception as e:
-            logger.error(f"Gemini LLM初期化エラー: {e}")
-    
-    def _initialize_agent(self):
-        """LangChainエージェントを初期化"""
-        if not self.llm:
-            logger.error("LLMが初期化されていないため、エージェントを作成できません")
-            return
+            response.raise_for_status()
+            
+            result = response.json()
+            
+            if "candidates" in result and len(result["candidates"]) > 0:
+                content = result["candidates"][0]["content"]["parts"][0]["text"]
+                return content
+            else:
+                return "レスポンスの解析に失敗しました。"
+                
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Gemini API呼び出しエラー: {e}")
+            return "AIサービスとの通信でエラーが発生しました。しばらく時間をおいてから再度お試しください。"
         
-        try:
-            # システムプロンプトの設定
-            system_prompt = """あなたは親切で知識豊富な日本語チャットボットです。
-            
-以下のツールを使用してユーザーの質問に答えてください：
-- exchange_rate_tool: 為替レート情報を取得する
-
-ユーザーが為替、通貨、レートについて質問した場合は、必ず為替ツールを使用してください。
-その他の質問には、丁寧に対応できない旨を回答してください。"""
-
-            prompt = ChatPromptTemplate.from_messages([
-                ("system", system_prompt),
-                ("human", "{input}"),
-                ("placeholder", "{agent_scratchpad}"),
-            ])
-            
-            # エージェントの作成
-            agent = create_tool_calling_agent(self.llm, self.tools, prompt)
-            self.agent_executor = AgentExecutor(agent=agent, tools=self.tools, verbose=True)
-            
-            logger.info("LangChainエージェント初期化完了")
         except Exception as e:
-            logger.error(f"エージェント初期化エラー: {e}")
+            logger.error(f"Gemini API処理エラー: {e}")
+            return "AI処理中にエラーが発生しました。"
     
     def process_message(self, message: str) -> str:
         """
@@ -123,22 +166,47 @@ class ChatBotAgent:
             message: ユーザーからのメッセージ
             
         Returns:
-            str: エージェントからのレスポンス
+            str: AIからのレスポンス
         """
         try:
-            if not self.agent_executor:
+            if not self.gemini_api_key:
                 return "申し訳ございません。システムの初期化中にエラーが発生しました。GEMINI_API_KEYが正しく設定されているか確認してください。"
             
-            # LangChainエージェントでメッセージを処理
-            response = self.agent_executor.invoke({"input": message})
-            return response["output"]
+            # 為替関連の質問かどうかを判定
+            if self._is_exchange_query(message):
+                # 為替データを取得
+                exchange_data = self._get_exchange_rates()
+                
+                # 為替データを含むプロンプトを作成
+                system_prompt = """あなたは親切で知識豊富な日本語チャットボットです。
+
+以下の為替データを参照して、ユーザーの質問に答えてください：
+
+{exchange_data}
+
+ユーザーの質問に対して、上記の為替データを使って適切に回答してください。
+為替レートについて詳しく説明し、必要に応じて投資のアドバイスも含めてください。"""
+                
+                prompt = system_prompt.format(exchange_data=exchange_data) + f"\\n\\nユーザーの質問: {message}"
+                
+            else:
+                # 為替以外の質問
+                system_prompt = """あなたは親切で知識豊富な日本語チャットボットです。
+
+このチャットボットは主に為替レート情報を提供することに特化しています。
+為替、通貨、レートに関する質問以外については、丁寧にお断りし、為替関連の質問をお待ちしていることをお伝えください。"""
+                
+                prompt = f"{system_prompt}\\n\\nユーザーの質問: {message}"
+            
+            # Gemini APIを呼び出し
+            return self._call_gemini_api(prompt)
             
         except Exception as e:
             logger.error(f"メッセージ処理エラー: {e}")
             return "申し訳ございません。処理中にエラーが発生しました。しばらく時間をおいてから再度お試しください。"
 
-# グローバルエージェントインスタンス
-agent = ChatBotAgent()
+# グローバルチャットボットインスタンス
+chatbot = SimpleChatBot()
 
 @app.get("/")
 async def root():
@@ -159,8 +227,8 @@ async def chat(request: ChatRequest):
     try:
         logger.info(f"受信メッセージ: {request.message}")
         
-        # エージェントでメッセージを処理
-        response = agent.process_message(request.message)
+        # チャットボットでメッセージを処理
+        response = chatbot.process_message(request.message)
         
         logger.info(f"送信レスポンス: {response}")
         
@@ -176,12 +244,16 @@ async def chat(request: ChatRequest):
 @app.get("/api/tools")
 async def get_available_tools():
     """利用可能なツール一覧を取得"""
-    tools_info = []
-    for tool in agent.tools:
-        tools_info.append({
-            "name": tool.__class__.__name__,
-            "description": getattr(tool, 'description', '説明なし')
-        })
+    tools_info = [
+        {
+            "name": "ExchangeRateTool",
+            "description": "GMO Coin APIから為替レート情報を取得"
+        },
+        {
+            "name": "GeminiAI",
+            "description": "Google Gemini APIによる自然言語処理"
+        }
+    ]
     
     return {"tools": tools_info}
 
