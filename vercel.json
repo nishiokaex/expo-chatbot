@@ -1,28 +1,16 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
   "builds": [
     {
       "src": "backend/main.py",
-      "use": "@vercel/python",
-      "config": {
-        "includeFiles": ["backend/**"],
-        "excludeFiles": [
-          "backend/tests/**",
-          "backend/venv/**",
-          "backend/__pycache__/**",
-          "backend/**/*.pyc",
-          "backend/**/*.pyo",
-          "backend/**/*.pyd",
-          "backend/**/*.log"
-        ]
-      }
+      "use": "@vercel/python"
     },
     {
       "src": "frontend/package.json",
       "use": "@vercel/static-build",
       "config": {
-        "distDir": "dist",
-        "buildCommand": "npm run build"
+        "distDir": "dist"
       }
     }
   ],
