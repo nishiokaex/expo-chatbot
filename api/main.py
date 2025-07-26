@@ -10,6 +10,10 @@ from typing import Dict, Any, List
 import logging
 import os
 from datetime import datetime
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain.agents import AgentExecutor, create_tool_calling_agent
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.messages import SystemMessage
 
 # ローカル開発用の設定
 app = FastAPI(
@@ -43,12 +47,16 @@ class ChatResponse(BaseModel):
 # チャットボットエージェントクラス
 class ChatBotAgent:
     """
-    LangChainのTool機能を使用したチャットボットエージェント
+    LangChainのTool機能とGemini APIを使用したチャットボットエージェント
     """
     
     def __init__(self):
         self.tools = []
+        self.llm = None
+        self.agent_executor = None
         self._initialize_tools()
+        self._initialize_llm()
+        self._initialize_agent()
     
     def _initialize_tools(self):
         """利用可能なツールを初期化"""
@@ -59,6 +67,53 @@ class ChatBotAgent:
         self.tools.append(exchanging_tool)
         
         logger.info(f"初期化完了: {len(self.tools)}個のツールが利用可能")
+    
+    def _initialize_llm(self):
+        """Gemini LLMを初期化"""
+        try:
+            gemini_api_key = os.getenv("GEMINI_API_KEY")
+            if not gemini_api_key:
+                logger.error("GEMINI_API_KEY環境変数が設定されていません")
+                return
+            
+            self.llm = ChatGoogleGenerativeAI(
+                model="gemini-1.5-flash",
+                google_api_key=gemini_api_key,
+                temperature=0.7
+            )
+            logger.info("Gemini LLM初期化完了")
+        except Exception as e:
+            logger.error(f"Gemini LLM初期化エラー: {e}")
+    
+    def _initialize_agent(self):
+        """LangChainエージェントを初期化"""
+        if not self.llm:
+            logger.error("LLMが初期化されていないため、エージェントを作成できません")
+            return
+        
+        try:
+            # システムプロンプトの設定
+            system_prompt = """あなたは親切で知識豊富な日本語チャットボットです。
+            
+以下のツールを使用してユーザーの質問に答えてください：
+- exchange_rate_tool: 為替レート情報を取得する
+
+ユーザーが為替、通貨、レートについて質問した場合は、必ず為替ツールを使用してください。
+その他の質問には、丁寧に対応できない旨を回答してください。"""
+
+            prompt = ChatPromptTemplate.from_messages([
+                ("system", system_prompt),
+                ("human", "{input}"),
+                ("placeholder", "{agent_scratchpad}"),
+            ])
+            
+            # エージェントの作成
+            agent = create_tool_calling_agent(self.llm, self.tools, prompt)
+            self.agent_executor = AgentExecutor(agent=agent, tools=self.tools, verbose=True)
+            
+            logger.info("LangChainエージェント初期化完了")
+        except Exception as e:
+            logger.error(f"エージェント初期化エラー: {e}")
     
     def process_message(self, message: str) -> str:
         """
@@ -71,41 +126,16 @@ class ChatBotAgent:
             str: エージェントからのレスポンス
         """
         try:
-            # シンプルなキーワードベースのルーティング
-            message_lower = message.lower()
+            if not self.agent_executor:
+                return "申し訳ございません。システムの初期化中にエラーが発生しました。GEMINI_API_KEYが正しく設定されているか確認してください。"
             
-            # 為替関連のキーワードをチェック
-            forex_keywords = ['為替', 'レート', 'usd', 'eur', 'jpy', '円', 'ドル', 'ユーロ']
-            if any(keyword in message_lower for keyword in forex_keywords):
-                # 為替ツールを使用
-                from api.exchanging_tool import ExchangingTool
-                exchanging_tool = ExchangingTool()
-                return exchanging_tool.get_rates()
-            
-            # 挨拶関連
-            greeting_keywords = ['こんにちは', 'おはよう', 'こんばんは', 'はじめまして', 'hello', 'hi']
-            if any(keyword in message_lower for keyword in greeting_keywords):
-                return "こんにちは！私は為替情報などをお手伝いできるチャットボットです。何かご質問はありますか？"
-            
-            # 機能説明
-            help_keywords = ['ヘルプ', 'help', '機能', '何ができる', 'できること']
-            if any(keyword in message_lower for keyword in help_keywords):
-                return """私ができることをご紹介します：
-
-📈 為替レート情報の取得
-- 「為替レートを教えて」「USDJPYのレートは？」など
-
-🔧 利用可能なツール：
-- 為替情報取得ツール
-
-その他ご質問があれば、お気軽にお聞きください！"""
-            
-            # デフォルトレスポンス
-            return "申し訳ございませんが、その質問にはお答えできません。為替レートについて聞いてみてください。例：「今日の為替レートを教えて」"
+            # LangChainエージェントでメッセージを処理
+            response = self.agent_executor.invoke({"input": message})
+            return response["output"]
             
         except Exception as e:
             logger.error(f"メッセージ処理エラー: {e}")
-            return "申し訳ございません。処理中にエラーが発生しました。"
+            return "申し訳ございません。処理中にエラーが発生しました。しばらく時間をおいてから再度お試しください。"
 
 # グローバルエージェントインスタンス
 agent = ChatBotAgent()
