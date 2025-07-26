@@ -8,7 +8,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "build": "EXPO_ENV_FILE=.env.prd npx expo export -p web",
+    "build": "EXPO_ENV_FILE=.env.prd npx expo export -p web --dump-sourcemap",
     "deploy": "npx expo export -p web && npx eas-cli@latest deploy"
   },
   "dependencies": {
