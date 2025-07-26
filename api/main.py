@@ -76,9 +76,9 @@ class ChatBotAgent:
             forex_keywords = ['為替', 'レート', 'usd', 'eur', 'jpy', '円', 'ドル', 'ユーロ']
             if any(keyword in message_lower for keyword in forex_keywords):
                 # 為替ツールを使用
-                forex_tool = next((tool for tool in self.tools if tool.__class__.__name__ == 'ForexTool'), None)
-                if forex_tool:
-                    return forex_tool.get_forex_rates()
+                exchanging_tool = next((tool for tool in self.tools if tool.__class__.__name__ == 'ExchangingTool'), None)
+                if exchanging_tool:
+                    return exchanging_tool.get_rates()
             
             # 挨拶関連
             greeting_keywords = ['こんにちは', 'おはよう', 'こんばんは', 'はじめまして', 'hello', 'hi']
