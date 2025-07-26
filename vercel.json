@@ -2,41 +2,28 @@
   "version": 2,
   "builds": [
     {
-      "src": "backend/main.py",
-      "use": "@vercel/python",
-      "config": {
-        "includeFiles": [
-          "backend/**"
-        ],
-        "excludeFiles": [
-          "backend/tests/**",
-          "backend/venv/**",
-          "backend/__pycache__/**",
-          "backend/**/*.pyc",
-          "backend/**/*.pyo",
-          "backend/**/*.pyd",
-          "backend/**/*.log"
-        ]
-      }
-    },
-    {
       "src": "frontend/package.json",
       "use": "@vercel/static-build",
       "config": {
-        "distDir": "dist",
-        "installCommand": "npm install",
-        "buildCommand": "npm run build"
+        "distDir": "dist"
       }
+    },
+    {
+      "src": "api/main.py",
+      "use": "@vercel/python"
     }
   ],
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/backend/main.py"
+      "dest": "/api/main.py"
     },
     {
       "src": "/(.*)",
-      "dest": "/index.html"
+      "dest": "/frontend/$1"
     }
-  ]
+  ],
+  "outputDirectory": "frontend/dist",
+  "installCommand": "cd backend && pip install -r requirements.txt && cd ../frontend && npm install",
+  "buildCommand": "cd frontend && npm run build"
 }
