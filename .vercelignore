@@ -1,0 +1,46 @@
+# Development files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv
+.env
+.env.*
+
+# Frontend development
+frontend/node_modules/
+frontend/src/
+frontend/app/
+frontend/.expo/
+frontend/dist/
+
+# Tests and development
+api/tests/
+*.test.py
+pytest.ini
+.coverage
+
+# Documentation
+docs/
+*.md
+README.md
+CLAUDE.md
+
+# Git and IDE
+.git/
+.gitignore
+.vscode/
+.idea/
+
+# Large development dependencies
+*.whl
+*.egg-info/
+build/
+dist/
+
+# OS files
+.DS_Store
+Thumbs.db
