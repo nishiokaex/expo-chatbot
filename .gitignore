@@ -143,3 +143,4 @@ frontend/logs/
 
 # OS specific
 Thumbs.db
+.vercel
