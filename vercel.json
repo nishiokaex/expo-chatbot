@@ -10,15 +10,7 @@
     },
     {
       "src": "api/main.py",
-      "use": "@vercel/python",
-      "config": {
-        "excludeFiles": [
-          "api/tests/**",
-          "**/__pycache__/**",
-          "**/*.pyc",
-          "**/*.test.py"
-        ]
-      }
+      "use": "@vercel/python"
     }
   ],
   "routes": [
