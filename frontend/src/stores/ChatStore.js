@@ -45,7 +45,7 @@ export const useChatStore = create((set, get) => ({
       addMessage(userMsg);
 
       // バックエンドAPIを呼び出し
-      const apiBaseUrl = process.env.API_SERVER_HOST;
+      const apiBaseUrl = process.env.API_SERVER_HOST || '';
       const response = await axios.post(`${apiBaseUrl}/api/chat`, {
         message: userMessage
       });
