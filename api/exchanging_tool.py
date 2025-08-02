@@ -1,12 +1,14 @@
 """
 為替レート取得ツール
 GMOコインのAPIを使用して為替レートを取得
+LangChainツール形式で実装
 """
 
 import requests
 from typing import Dict, Any, Optional
 import logging
 from datetime import datetime
+from langchain_core.tools import tool
 
 logger = logging.getLogger(__name__)
 
@@ -126,3 +128,32 @@ class ExchangingTool:
         except Exception as e:
             logger.error(f"特定レート取得エラー: {e}")
             return f"{currency_pair}のレート取得中にエラーが発生しました。"
+
+
+# LangChainツール形式の為替レート取得関数
+@tool
+def get_exchange_rates() -> str:
+    """
+    GMO Coin APIから為替レート情報を取得します。
+    主要通貨ペア（USD/JPY、EUR/JPY、GBP/JPY、AUD/JPY、EUR/USD）のレートを返します。
+    
+    Returns:
+        str: 整形された為替レート情報
+    """
+    tool_instance = ExchangingTool()
+    return tool_instance.get_rates()
+
+
+@tool
+def get_specific_exchange_rate(currency_pair: str) -> str:
+    """
+    特定の通貨ペアの為替レートを取得します。
+    
+    Args:
+        currency_pair: 取得したい通貨ペア（例: USD_JPY, EUR_JPY）
+        
+    Returns:
+        str: 指定された通貨ペアのレート情報
+    """
+    tool_instance = ExchangingTool()
+    return tool_instance.get_specific_rate(currency_pair)

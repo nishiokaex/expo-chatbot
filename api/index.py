@@ -1,6 +1,6 @@
 """
 FastAPIチャットボットバックエンド
-軽量なGemini API直接呼び出し実装
+LangChainベースのGemini API実装
 """
 
 from fastapi import FastAPI, HTTPException
@@ -9,9 +9,13 @@ from pydantic import BaseModel
 from typing import Dict, Any, List
 import logging
 import os
-import requests
 from datetime import datetime
-from .exchanging_tool import ExchangingTool
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.runnables import RunnablePassthrough
+from langchain_core.output_parsers import StrOutputParser
+from .exchanging_tool import get_exchange_rates, get_specific_exchange_rate
 
 # ローカル開発用の設定
 app = FastAPI(
@@ -42,64 +46,58 @@ class ChatResponse(BaseModel):
     response: str
     timestamp: str
 
-# 軽量チャットボットクラス
-class SimpleChatBot:
+# LangChainベースのチャットボットクラス
+class LangChainChatBot:
     """
-    Gemini API直接呼び出しによる軽量チャットボット
+    LangChainとGemini APIを使用したチャットボット
     """
     
     def __init__(self):
         self.gemini_api_key = os.getenv("GEMINI_API_KEY")
-        self.api_url = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent"
-        self.exchange_tool = ExchangingTool()
         
         if not self.gemini_api_key:
             logger.error("GEMINI_API_KEY環境変数が設定されていません")
+            self.llm = None
+            self.agent_executor = None
         else:
-            logger.info("SimpleChatBot初期化完了")
+            try:
+                # ChatGoogleGenerativeAIでLLMを初期化
+                self.llm = ChatGoogleGenerativeAI(
+                    model="gemini-1.5-flash",
+                    google_api_key=self.gemini_api_key,
+                    temperature=0.7,
+                    max_tokens=1000
+                )
+                
+                # プロンプトテンプレートを作成
+                self.prompt_template = ChatPromptTemplate.from_messages([
+                    ("system", """あなたは親切で知識豊富な日本語チャットボットです。
+
+このチャットボットは主に為替レート情報を提供することに特化しています。
+
+為替、通貨、レートに関する質問の場合、以下の為替データを参照して回答してください：
+{exchange_data}
+
+為替関連以外の質問の場合は、丁寧にお断りし、為替関連の質問をお待ちしていることをお伝えください。
+
+常に日本語で回答してください。"""),
+                    ("human", "{message}")
+                ])
+                
+                # チェーンを作成
+                self.chain = self.prompt_template | self.llm | StrOutputParser()
+                
+                logger.info("LangChainChatBot初期化完了")
+                
+            except Exception as e:
+                logger.error(f"LangChainChatBot初期化エラー: {e}")
+                self.llm = None
+                self.chain = None
     
     def _is_exchange_query(self, message: str) -> bool:
         """為替関連の質問かどうかを判定"""
         exchange_keywords = ["為替", "レート", "円", "ドル", "ユーロ", "ポンド", "豪ドル", "通貨", "USD", "EUR", "GBP", "AUD", "JPY"]
         return any(keyword in message for keyword in exchange_keywords)
-    
-    
-    def _call_gemini_api(self, prompt: str) -> str:
-        """Gemini API直接呼び出し"""
-        try:
-            headers = {"Content-Type": "application/json"}
-            
-            payload = {
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {
-                    "temperature": 0.7,
-                    "maxOutputTokens": 1000
-                }
-            }
-            
-            response = requests.post(
-                f"{self.api_url}?key={self.gemini_api_key}",
-                headers=headers,
-                json=payload,
-                timeout=30
-            )
-            response.raise_for_status()
-            
-            result = response.json()
-            
-            if "candidates" in result and len(result["candidates"]) > 0:
-                content = result["candidates"][0]["content"]["parts"][0]["text"]
-                return content
-            else:
-                return "レスポンスの解析に失敗しました。"
-                
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Gemini API呼び出しエラー: {e}")
-            return "AIサービスとの通信でエラーが発生しました。しばらく時間をおいてから再度お試しください。"
-        
-        except Exception as e:
-            logger.error(f"Gemini API処理エラー: {e}")
-            return "AI処理中にエラーが発生しました。"
     
     def process_message(self, message: str) -> str:
         """
@@ -112,44 +110,31 @@ class SimpleChatBot:
             str: AIからのレスポンス
         """
         try:
-            if not self.gemini_api_key:
+            if not self.chain:
                 return "申し訳ございません。システムの初期化中にエラーが発生しました。GEMINI_API_KEYが正しく設定されているか確認してください。"
             
             # 為替関連の質問かどうかを判定
             if self._is_exchange_query(message):
                 # 為替データを取得
-                exchange_data = self.exchange_tool.get_rates()
-                
-                # 為替データを含むプロンプトを作成
-                system_prompt = """あなたは親切で知識豊富な日本語チャットボットです。
-
-以下の為替データを参照して、ユーザーの質問に答えてください：
-
-{exchange_data}
-
-ユーザーの質問に対して、上記の為替データを使って適切に回答してください。
-為替レートについて詳しく説明し、必要に応じて投資のアドバイスも含めてください。"""
-                
-                prompt = system_prompt.format(exchange_data=exchange_data) + f"\\n\\nユーザーの質問: {message}"
-                
+                exchange_data = get_exchange_rates()
             else:
-                # 為替以外の質問
-                system_prompt = """あなたは親切で知識豊富な日本語チャットボットです。
-
-このチャットボットは主に為替レート情報を提供することに特化しています。
-為替、通貨、レートに関する質問以外については、丁寧にお断りし、為替関連の質問をお待ちしていることをお伝えください。"""
+                # 為替以外の場合は空のデータ
+                exchange_data = "為替データの取得は不要です。"
+            
+            # チェーンを実行してレスポンスを取得
+            result = self.chain.invoke({
+                "message": message,
+                "exchange_data": exchange_data
+            })
+            
+            return result
                 
-                prompt = f"{system_prompt}\\n\\nユーザーの質問: {message}"
-            
-            # Gemini APIを呼び出し
-            return self._call_gemini_api(prompt)
-            
         except Exception as e:
-            logger.error(f"メッセージ処理エラー: {e}")
+            logger.error(f"LangChainメッセージ処理エラー: {e}")
             return "申し訳ございません。処理中にエラーが発生しました。しばらく時間をおいてから再度お試しください。"
 
 # グローバルチャットボットインスタンス
-chatbot = SimpleChatBot()
+chatbot = LangChainChatBot()
 
 @app.get("/")
 async def root():
@@ -189,12 +174,16 @@ async def get_available_tools():
     """利用可能なツール一覧を取得"""
     tools_info = [
         {
-            "name": "ExchangeRateTool",
-            "description": "GMO Coin APIから為替レート情報を取得"
+            "name": "get_exchange_rates",
+            "description": "GMO Coin APIから主要通貨ペアの為替レート情報を取得"
         },
         {
-            "name": "GeminiAI",
-            "description": "Google Gemini APIによる自然言語処理"
+            "name": "get_specific_exchange_rate", 
+            "description": "GMO Coin APIから特定通貨ペアの為替レート情報を取得"
+        },
+        {
+            "name": "ChatGoogleGenerativeAI",
+            "description": "LangChain経由でGoogle Gemini APIによる自然言語処理"
         }
     ]
     
