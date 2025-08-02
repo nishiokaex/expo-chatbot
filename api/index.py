@@ -116,7 +116,7 @@ class LangChainChatBot:
             # 為替関連の質問かどうかを判定
             if self._is_exchange_query(message):
                 # 為替データを取得
-                exchange_data = get_exchange_rates()
+                exchange_data = get_exchange_rates.invoke({})
             else:
                 # 為替以外の場合は空のデータ
                 exchange_data = "為替データの取得は不要です。"
