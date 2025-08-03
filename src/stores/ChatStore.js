@@ -54,6 +54,7 @@ export const useChatStore = create((set, get) => ({
         text: response.data.response,
         timestamp: new Date(),
         isUser: false,
+        adaptiveCard: response.data.adaptiveCard, // Adaptive Card対応
       };
       addMessage(aiMsg);
 
@@ -79,4 +80,53 @@ export const useChatStore = create((set, get) => ({
     messages: [], 
     error: null 
   }),
+
+  // Adaptive Card送信処理
+  submitAdaptiveCard: async (submitData) => {
+    const { addMessage, setLoading, setError } = get();
+    
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Adaptive Card送信データをログ出力
+      console.log('Adaptive Card submitted:', submitData);
+
+      // バックエンドにAdaptive Card送信データを送信
+      const apiBaseUrl = process.env.API_SERVER_HOST || '';
+      const response = await axios.post(`${apiBaseUrl}/api/adaptive-card-submit`, {
+        actionType: submitData.actionType,
+        actionId: submitData.actionId,
+        data: submitData.data,
+      });
+
+      // レスポンスメッセージを追加
+      if (response.data.response) {
+        const responseMsg = {
+          id: Math.random().toString(36).substr(2, 9),
+          text: response.data.response,
+          timestamp: new Date(),
+          isUser: false,
+          adaptiveCard: response.data.adaptiveCard,
+        };
+        addMessage(responseMsg);
+      }
+
+    } catch (error) {
+      console.error('Adaptive Card送信エラー:', error);
+      setError('Adaptive Cardの送信に失敗しました');
+      
+      // エラーメッセージを追加
+      const errorMsg = {
+        id: Math.random().toString(36).substr(2, 9),
+        text: 'Adaptive Cardの送信でエラーが発生しました。',
+        timestamp: new Date(),
+        isUser: false,
+        isError: true,
+      };
+      addMessage(errorMsg);
+    } finally {
+      setLoading(false);
+    }
+  },
 }));

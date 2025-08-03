@@ -1,14 +1,16 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Card, Text, Avatar, useTheme } from 'react-native-paper';
+import AdaptiveCard from './adaptive-cards/AdaptiveCard';
 
 /**
  * メッセージバブルコンポーネント
  * react-native-paperベースのチャットメッセージ表示
+ * Adaptive Cards対応
  */
-const MessageBubble = ({ message }) => {
+const MessageBubble = ({ message, onAdaptiveCardSubmit }) => {
   const theme = useTheme();
-  const { text, isUser, timestamp, isError } = message;
+  const { text, isUser, timestamp, isError, adaptiveCard } = message;
 
   // エラーメッセージの場合の色設定
   const getMessageColors = () => {
@@ -61,20 +63,36 @@ const MessageBubble = ({ message }) => {
         style={[
           styles.bubble,
           { backgroundColor: colors.backgroundColor },
-          isUser ? styles.userBubble : styles.aiBubble
+          isUser ? styles.userBubble : styles.aiBubble,
+          adaptiveCard && !isUser && styles.adaptiveCardBubble
         ]}
         elevation={1}
       >
         <Card.Content style={styles.content}>
-          <Text
-            variant="bodyMedium"
-            style={[
-              styles.messageText,
-              { color: colors.textColor }
-            ]}
-          >
-            {text}
-          </Text>
+          {/* 通常のテキストメッセージ */}
+          {text && (
+            <Text
+              variant="bodyMedium"
+              style={[
+                styles.messageText,
+                { color: colors.textColor }
+              ]}
+            >
+              {text}
+            </Text>
+          )}
+          
+          {/* Adaptive Card */}
+          {adaptiveCard && !isUser && (
+            <View style={styles.adaptiveCardContainer}>
+              <AdaptiveCard
+                cardJson={adaptiveCard}
+                onSubmit={onAdaptiveCardSubmit}
+                style={styles.adaptiveCard}
+              />
+            </View>
+          )}
+          
           <Text
             variant="labelSmall"
             style={[
@@ -136,6 +154,16 @@ const styles = StyleSheet.create({
   timestamp: {
     marginTop: 4,
     textAlign: 'right',
+  },
+  adaptiveCardBubble: {
+    maxWidth: '90%', // Adaptive Cardの場合は少し広め
+  },
+  adaptiveCardContainer: {
+    marginVertical: 4,
+  },
+  adaptiveCard: {
+    backgroundColor: 'transparent',
+    elevation: 0,
   },
 });
 

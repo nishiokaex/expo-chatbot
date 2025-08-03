@@ -26,7 +26,8 @@ export default function ChatScreen() {
     isLoading, 
     error,
     sendMessage,
-    setError
+    setError,
+    submitAdaptiveCard
   } = useChatStore();
 
   // 新しいメッセージが追加されたら自動スクロール
@@ -49,10 +50,20 @@ export default function ChatScreen() {
   };
 
   /**
+   * Adaptive Card送信ハンドラー
+   */
+  const handleAdaptiveCardSubmit = (submitData) => {
+    submitAdaptiveCard(submitData);
+  };
+
+  /**
    * メッセージアイテムのレンダリング
    */
   const renderMessage = ({ item }) => (
-    <MessageBubble message={item} />
+    <MessageBubble 
+      message={item} 
+      onAdaptiveCardSubmit={handleAdaptiveCardSubmit}
+    />
   );
 
   /**
