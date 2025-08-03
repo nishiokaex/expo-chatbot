@@ -16,7 +16,7 @@ React Native for Web と Python FastAPIを使用したチャットボットア�
 ### フロントエンド
 - **React Native**: Expo SDK v52
 - **状態管理**: Zustand (Class構文)
-- **UIライブラリ**: react-native-gifted-chat
+- **UIライブラリ**: react-native-paper
 - **言語**: JavaScript
 
 ### バックエンド

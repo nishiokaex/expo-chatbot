@@ -3,6 +3,7 @@ import axios from 'axios';
 
 /**
  * チャット機能のためのZustandストア
+ * react-native-paper用にシンプル化されたメッセージ形式
  */
 
 // Zustandストアの作成
@@ -14,11 +15,11 @@ export const useChatStore = create((set, get) => ({
   
   // アクション
   addMessage: (message) => set((state) => ({ 
-    messages: [message, ...state.messages] 
+    messages: [...state.messages, message] 
   })),
 
   addMessages: (newMessages) => set((state) => ({ 
-    messages: [...newMessages, ...state.messages] 
+    messages: [...state.messages, ...newMessages] 
   })),
 
   setLoading: (loading) => set({ isLoading: loading }),
@@ -34,13 +35,10 @@ export const useChatStore = create((set, get) => ({
 
       // ユーザーメッセージを即座に追加
       const userMsg = {
-        _id: Math.random().toString(36).substr(2, 9),
+        id: Math.random().toString(36).substr(2, 9),
         text: userMessage,
-        createdAt: new Date(),
-        user: {
-          _id: 1,
-          name: 'User',
-        },
+        timestamp: new Date(),
+        isUser: true,
       };
       addMessage(userMsg);
 
@@ -52,13 +50,10 @@ export const useChatStore = create((set, get) => ({
 
       // AIレスポンスメッセージを追加
       const aiMsg = {
-        _id: Math.random().toString(36).substr(2, 9),
+        id: Math.random().toString(36).substr(2, 9),
         text: response.data.response,
-        createdAt: new Date(),
-        user: {
-          _id: 2,
-          name: 'ChatBot',
-        },
+        timestamp: new Date(),
+        isUser: false,
       };
       addMessage(aiMsg);
 
@@ -68,13 +63,11 @@ export const useChatStore = create((set, get) => ({
       
       // エラーメッセージを追加
       const errorMsg = {
-        _id: Math.random().toString(36).substr(2, 9),
+        id: Math.random().toString(36).substr(2, 9),
         text: 'すみません、エラーが発生しました。もう一度お試しください。',
-        createdAt: new Date(),
-        user: {
-          _id: 2,
-          name: 'ChatBot',
-        },
+        timestamp: new Date(),
+        isUser: false,
+        isError: true,
       };
       addMessage(errorMsg);
     } finally {
