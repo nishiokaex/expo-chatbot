@@ -1,7 +1,8 @@
 import React from 'react';
-import { Stack } from 'expo-router';
+import { Tabs } from 'expo-router';
 import { PaperProvider } from 'react-native-paper';
 import { StatusBar } from 'expo-status-bar';
+import { MaterialIcons } from '@expo/vector-icons';
 
 // Material Design 3のテーマ設定
 const theme = {
@@ -44,7 +45,7 @@ export default function RootLayout() {
   return (
     <PaperProvider theme={theme}>
       <StatusBar style="light" backgroundColor={theme.colors.primary} />
-      <Stack
+      <Tabs
         screenOptions={{
           headerStyle: {
             backgroundColor: theme.colors.primary,
@@ -53,15 +54,32 @@ export default function RootLayout() {
           headerTitleStyle: {
             fontWeight: 'bold',
           },
+          tabBarActiveTintColor: theme.colors.primary,
+          tabBarInactiveTintColor: theme.colors.outline,
+          tabBarStyle: {
+            backgroundColor: theme.colors.surface,
+          },
         }}
       >
-        <Stack.Screen 
+        <Tabs.Screen 
           name='index' 
           options={{
-            title: 'AIエージェント',
+            title: 'チャット',
+            tabBarIcon: ({ color, size }) => (
+              <MaterialIcons name="chat" size={size} color={color} />
+            ),
           }} 
         />
-      </Stack>
+        <Tabs.Screen 
+          name='settings' 
+          options={{
+            title: 'URL設定',
+            tabBarIcon: ({ color, size }) => (
+              <MaterialIcons name="settings" size={size} color={color} />
+            ),
+          }} 
+        />
+      </Tabs>
     </PaperProvider>
   );
 }

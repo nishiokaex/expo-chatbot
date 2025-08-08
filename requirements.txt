@@ -5,3 +5,5 @@ python-dotenv==1.0.1
 pydantic==2.10.4
 langchain-core==0.3.72
 langchain-google-genai==2.1.8
+langchain-community
+beautifulsoup4==4.12.2
